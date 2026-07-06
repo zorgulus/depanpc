@@ -22,6 +22,12 @@ try {
     $env:GOOS = "windows"
     $env:GOARCH = "amd64"
     go build -ldflags "-s -w -X main.buildVersion=$version" -o $output .
+    # $ErrorActionPreference = "Stop" n'intercepte pas un code de sortie natif
+    # non-zero : sans ce contrôle explicite, un echec de compilation continue
+    # silencieusement et publierait un ancien binaire sous un nouveau numero.
+    if ($LASTEXITCODE -ne 0) {
+        throw "go build a echoue (code $LASTEXITCODE)"
+    }
 }
 finally {
     Pop-Location

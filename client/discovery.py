@@ -55,7 +55,7 @@ async def _probe(ip, port, timeout):
         return False
 
 
-async def scan(port=DEFAULT_PORT, timeout=0.3, concurrency=100, subnet=None, progress=None):
+async def scan(port=DEFAULT_PORT, timeout=0.5, concurrency=100, subnet=None, progress=None):
     if subnet:
         nets = [("manuel", ipaddress.ip_network(subnet, strict=False))]
     else:
@@ -87,6 +87,6 @@ async def scan(port=DEFAULT_PORT, timeout=0.3, concurrency=100, subnet=None, pro
     return found
 
 
-def find_agents(port=DEFAULT_PORT, timeout=0.3, concurrency=100, subnet=None, progress=None):
+def find_agents(port=DEFAULT_PORT, timeout=0.5, concurrency=100, subnet=None, progress=None):
     """Wrapper synchrone : renvoie la liste des IP où un agent DEPAN PC a répondu."""
     return asyncio.run(scan(port=port, timeout=timeout, concurrency=concurrency, subnet=subnet, progress=progress))

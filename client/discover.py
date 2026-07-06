@@ -11,7 +11,7 @@ from discovery import DEFAULT_PORT, find_agents
 def main():
     parser = argparse.ArgumentParser(description="Découverte automatique de l'agent DEPAN PC sur le réseau local")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
-    parser.add_argument("--timeout", type=float, default=0.3, help="délai max par hôte testé (secondes)")
+    parser.add_argument("--timeout", type=float, default=0.5, help="délai max par hôte testé (secondes)")
     parser.add_argument("--concurrency", type=int, default=100)
     parser.add_argument("--subnet", default=None, help="forcer un sous-réseau précis, ex: 192.168.43.0/24")
     args = parser.parse_args()

@@ -3,6 +3,12 @@ commandes de diagnostic réelles (disque, réseau, processus, event log), et
 les deux actions réelles (flush_dns, kill_process) via le flux de
 confirmation obligatoire. kill_process est testé sur un processus jetable
 (ping) lancé par ce script, jamais sur un processus réel de la machine.
+
+Le token doit être passé en argument (--token), lu sur l'écran/la sortie
+de l'agent au démarrage : depuis la correction de l'audit sécurité,
+agent.log ne contient plus le token en clair (seulement ses 4 premiers
+caractères), donc il n'est plus possible de l'extraire automatiquement du
+fichier de log.
 """
 
 import argparse
@@ -12,24 +18,8 @@ import subprocess
 import sys
 import time
 import uuid
-from pathlib import Path
 
 import websockets
-
-
-def read_latest_token(log_path: Path) -> str:
-    last_token = None
-    with log_path.open(encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            entry = json.loads(line)
-            if entry.get("event") == "startup":
-                last_token = entry.get("details", {}).get("token")
-    if not last_token:
-        raise RuntimeError(f"aucun token trouvé dans {log_path}")
-    return last_token
 
 
 async def send_and_receive(ws, message):
@@ -123,11 +113,10 @@ def main():
     parser = argparse.ArgumentParser(description="Smoke test DEPAN PC (catalogue phase 3)")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", default=8765, type=int)
-    parser.add_argument("--log-path", default="../agent/agent.log", help="chemin vers agent.log pour extraire le token")
+    parser.add_argument("--token", required=True, help="token affiché par l'agent au démarrage")
     args = parser.parse_args()
 
-    token = read_latest_token(Path(args.log_path))
-    asyncio.run(run(args.host, args.port, token))
+    asyncio.run(run(args.host, args.port, args.token))
 
 
 if __name__ == "__main__":

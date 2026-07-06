@@ -17,6 +17,7 @@ import sys
 import uuid
 
 import websockets
+from websockets.exceptions import ConnectionClosed
 
 import discovery
 
@@ -124,6 +125,10 @@ def main():
         sys.exit(0)
     except OSError as exc:
         print(f"Impossible de joindre l'agent sur {host}:{args.port} : {exc}")
+        sys.exit(1)
+    except ConnectionClosed:
+        print("\nConnexion perdue avec l'agent (fenêtre fermée sur le PC dépanné, ou coupure du hotspot).")
+        print("Relance le client une fois la connexion rétablie.")
         sys.exit(1)
 
 

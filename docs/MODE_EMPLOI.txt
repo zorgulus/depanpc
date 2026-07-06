@@ -46,3 +46,7 @@ EN CAS DE PROBLÈME
   l'IP utilisée est bien l'une de celles affichées par l'agent.
 - "Authentification refusée" : le token affiché change à chaque lancement de
   l'agent — vérifier qu'on utilise bien le dernier token affiché.
+- Un message d'erreur s'affiche immédiatement au lancement au lieu de la
+  bannière habituelle : un agent tourne probablement déjà sur ce PC (une
+  fenêtre précédente encore ouverte, peut-être réduite dans la barre des
+  tâches) — la retrouver et l'utiliser au lieu d'en relancer un second.

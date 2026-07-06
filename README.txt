@@ -107,10 +107,12 @@ DEVELOPPEMENT / REBUILD
      go build -o agent.exe .
 
   Test automatise complet (17 verifications, y compris les actions
-  reelles), a lancer en local sur la meme machine que l'agent (lit le
-  token dans agent.log) :
+  reelles), a lancer en local sur la meme machine que l'agent (le token
+  n'est plus lisible dans agent.log depuis la correction de l'audit
+  securite -- le passer explicitement, tel qu'affiche par l'agent au
+  demarrage) :
      cd client
-     .venv\Scripts\python smoke_test.py --log-path ..\agent\agent.log
+     .venv\Scripts\python smoke_test.py --token <token affiche par l'agent>
 
 L'agent ecoute par defaut sur 0.0.0.0:8765 : accessible aussi bien en
 local (127.0.0.1) que depuis n'importe quel appareil du hotspot. Le flag

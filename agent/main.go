@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
@@ -9,6 +10,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -16,8 +18,9 @@ import (
 )
 
 const (
-	confirmTTL = 60 * time.Second
-	logFile    = "agent.log"
+	confirmTTL     = 60 * time.Second
+	logFile        = "agent.log"
+	maxMessageSize = 16 * 1024 // largement suffisant pour nos messages JSON
 )
 
 // buildVersion est injecté au build via -ldflags -X (voir build.ps1).
@@ -39,6 +42,17 @@ type pendingAction struct {
 func main() {
 	listenAddr := flag.String("listen", "0.0.0.0:8765", "adresse d'écoute (host:port)")
 	flag.Parse()
+
+	// On tente d'écouter AVANT d'afficher/journaliser quoi que ce soit : si
+	// un agent tourne déjà sur ce PC, on l'apprend immédiatement au lieu
+	// d'afficher une bannière trompeuse (nouveau token, IP...) pour une
+	// instance qui va mourir aussitôt.
+	listener, err := net.Listen("tcp", *listenAddr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Impossible de démarrer l'agent sur %s : %v\n", *listenAddr, err)
+		fmt.Fprintln(os.Stderr, "Un agent est probablement déjà en cours d'exécution sur ce PC (vérifier les fenêtres ouvertes).")
+		os.Exit(1)
+	}
 
 	logger, err := NewLogger(logFile)
 	if err != nil {
@@ -62,18 +76,21 @@ func main() {
 	fmt.Println("Fermer la fenêtre (ou Ctrl+C) arrête l'agent.")
 	fmt.Println("======================")
 
+	// Le token n'est jamais écrit en clair dans le log : agent.log est un
+	// fichier local lisible par tout processus ayant accès au disque, et le
+	// token y transiterait sinon en clair (voir maskToken).
 	logger.Log("startup", "", map[string]interface{}{
 		"version": buildVersion,
 		"listen":  *listenAddr,
 		"ips":     ips,
-		"token":   authToken,
+		"token":   maskToken(authToken),
 	})
 
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		handleConn(w, r, logger, authToken)
 	})
 
-	if err := http.ListenAndServe(*listenAddr, nil); err != nil {
+	if err := http.Serve(listener, nil); err != nil {
 		log.Fatalf("serveur arrêté: %v", err)
 	}
 }
@@ -108,6 +125,7 @@ func handleConn(w http.ResponseWriter, r *http.Request, logger *Logger, authToke
 		return
 	}
 	defer conn.Close()
+	conn.SetReadLimit(maxMessageSize)
 
 	remote := r.RemoteAddr
 	logger.Log("connection_open", "", map[string]string{"remote": remote})
@@ -162,7 +180,8 @@ func authenticate(conn *websocket.Conn, logger *Logger, remote, authToken string
 		return false
 	}
 
-	if msg.Type != MsgAuth || msg.Token != authToken {
+	tokenMatch := subtle.ConstantTimeCompare([]byte(msg.Token), []byte(authToken)) == 1
+	if msg.Type != MsgAuth || !tokenMatch {
 		logger.Log("auth_failed", "", map[string]string{"remote": remote, "reason": "bad_token"})
 		conn.WriteJSON(Message{ID: msg.ID, Type: MsgError, Error: "auth_failed"})
 		return false
@@ -203,7 +222,7 @@ func handleRequest(conn *websocket.Conn, logger *Logger, pending map[string]pend
 		Params:  msg.Params,
 		Expiry:  time.Now().Add(confirmTTL),
 	}
-	logger.Log("confirmation_required", msg.Command, map[string]string{"token": token})
+	logger.Log("confirmation_required", msg.Command, map[string]string{"token": maskToken(token)})
 	conn.WriteJSON(Message{ID: msg.ID, Type: MsgConfirmationRequired, Command: msg.Command, ConfirmToken: token})
 }
 
@@ -245,4 +264,15 @@ func newToken() string {
 	b := make([]byte, 8)
 	rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// maskToken ne garde que les 4 premiers caractères d'un token pour les
+// besoins de traçabilité dans les logs, sans jamais y écrire la valeur
+// complète (agent.log est un fichier local en clair, potentiellement
+// lisible par un tiers sur un PC déjà compromis).
+func maskToken(t string) string {
+	if len(t) <= 4 {
+		return "****"
+	}
+	return t[:4] + "..."
 }
