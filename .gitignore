@@ -4,3 +4,4 @@ agent/agent_stdout.txt
 client/.venv/
 client/__pycache__/
 dist/
+*.lnk

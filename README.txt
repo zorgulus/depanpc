@@ -54,6 +54,14 @@ un avertissement ("Windows a protege votre ordinateur"). C'est normal
 pour un exe non signe telecharge depuis internet -> cliquer sur
 "Plus d'infos" puis "Executer quand meme".
 
+LANCEMENT COTE PORTABLE DE CONTROLE
+--------------------------------------
+Double-cliquer sur "Depanner un PC.lnk" (dans ce dossier) ou lancer
+depanner.bat directement. Ca prepare l'environnement client (venv Python,
+premiere fois seulement) puis lance Claude Code dans ce dossier, pret a
+piloter le depannage (decouverte de l'agent, envoi de commandes,
+confirmation des actions).
+
 UTILISATION SUR LE TERRAIN
 ----------------------------
 1. Sur le PC a depanner : soit copier dist/depanpc-agent.exe depuis une
