@@ -40,7 +40,7 @@ Lien stable, ne change jamais meme apres une nouvelle publication
   https://github.com/zorgulus/depanpc/releases/latest/download/depanpc-agent.exe
 
 Version raccourcie, simple a taper sur le PC a depanner :
-  tinyurl.com/29qe7by7
+  tinyurl.com/zorgulus
 
 Pour publier une nouvelle version apres une modification du code :
   .\publish.ps1
@@ -66,7 +66,7 @@ UTILISATION SUR LE TERRAIN
 ----------------------------
 1. Sur le PC a depanner : soit copier dist/depanpc-agent.exe depuis une
    cle USB, soit ouvrir un navigateur et telecharger directement via
-   tinyurl.com/29qe7by7 (necessite une connexion internet, par exemple
+   tinyurl.com/zorgulus (necessite une connexion internet, par exemple
    via le hotspot Android une fois connecte).
 2. Double-cliquer sur depanpc-agent.exe : une fenetre affiche la version,
    les IP reseau et le token de connexion.

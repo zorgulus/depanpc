@@ -12,7 +12,7 @@ COMMENT LE LANCER
 1. Récupérer depanpc-agent.exe sur le PC à dépanner :
    - soit depuis une clé USB,
    - soit en le téléchargeant directement via un navigateur, à cette
-     adresse : tinyurl.com/29qe7by7
+     adresse : tinyurl.com/zorgulus
      (nécessite une connexion internet sur le PC, par exemple en le
      connectant d'abord au hotspot Android)
 2. Double-cliquer dessus. Une fenêtre noire s'ouvre et affiche :
