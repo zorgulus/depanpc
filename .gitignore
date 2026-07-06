@@ -1,0 +1,6 @@
+agent/agent.exe
+agent/agent.log
+agent/agent_stdout.txt
+client/.venv/
+client/__pycache__/
+dist/

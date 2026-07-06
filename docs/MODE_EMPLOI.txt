@@ -1,0 +1,38 @@
+DEPAN PC — Agent de dépannage terrain
+======================================
+
+CE QUE C'EST
+-------------
+Un seul fichier : depanpc-agent.exe. Aucune installation. Il collecte des
+informations sur le PC (disque, réseau, journaux Windows, processus) et ne
+peut exécuter que des actions précises, jamais une commande arbitraire.
+
+COMMENT LE LANCER
+------------------
+1. Copier depanpc-agent.exe sur le PC à dépanner (clé USB, etc.).
+2. Double-cliquer dessus. Une fenêtre noire s'ouvre et affiche :
+   - la ou les adresses IP du PC sur le réseau (hotspot)
+   - un token de connexion (une suite de lettres/chiffres)
+3. Garder cette fenêtre ouverte pendant toute la durée du dépannage.
+4. Sur le portable de contrôle, se connecter avec l'IP et le token affichés.
+5. Pour arrêter l'agent : fermer la fenêtre, ou Ctrl+C.
+
+CE QUE L'AGENT FAIT — ET NE FAIT PAS
+--------------------------------------
+- Il ne peut exécuter QUE les commandes prévues à l'avance (pas de commande
+  libre envoyée depuis le portable de contrôle).
+- Les commandes de lecture (disque, réseau, processus, journaux) s'exécutent
+  automatiquement.
+- Les commandes qui changent quelque chose sur le PC (arrêter un processus,
+  vider le cache DNS) demandent toujours une confirmation manuelle avant de
+  s'exécuter réellement.
+- Tout ce qui se passe est enregistré dans un fichier agent.log, créé à côté
+  de l'exécutable.
+
+EN CAS DE PROBLÈME
+--------------------
+- "Le portable de contrôle n'arrive pas à se connecter" : vérifier que les
+  deux appareils sont bien sur le même réseau Wi-Fi (le hotspot), et que
+  l'IP utilisée est bien l'une de celles affichées par l'agent.
+- "Authentification refusée" : le token affiché change à chaque lancement de
+  l'agent — vérifier qu'on utilise bien le dernier token affiché.
