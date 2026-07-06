@@ -28,6 +28,7 @@ finally {
 }
 
 Copy-Item (Join-Path $root "docs\MODE_EMPLOI.txt") $distDir -Force
+Set-Content -Path (Join-Path $distDir "VERSION.txt") -Value $version -NoNewline
 
 Write-Host "OK -> $output"
 Get-Item $output | Select-Object Name, Length, LastWriteTime

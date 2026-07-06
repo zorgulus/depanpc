@@ -30,10 +30,36 @@ PHASES
    copier sur cle USB et lancer par double-clic, avec sa notice
    (dist/MODE_EMPLOI.txt).
 
+HEBERGEMENT EN LIGNE (telechargement direct)
+-----------------------------------------------
+Le binaire est publie sur GitHub Releases (depot public) :
+  https://github.com/zorgulus/depanpc
+
+Lien stable, ne change jamais meme apres une nouvelle publication
+(pointe toujours vers la derniere version) :
+  https://github.com/zorgulus/depanpc/releases/latest/download/depanpc-agent.exe
+
+Version raccourcie, simple a taper sur le PC a depanner :
+  tinyurl.com/29qe7by7
+
+Pour publier une nouvelle version apres une modification du code :
+  .\publish.ps1
+(compile, cree une nouvelle release GitHub et y attache l'exe ; le lien
+"latest" et le lien raccourci ci-dessus continuent de fonctionner sans
+etre regeneres).
+
+Sur le PC a depanner, le fichier telecharge via navigateur porte la
+"marque du web" de Windows : au premier lancement, SmartScreen affichera
+un avertissement ("Windows a protege votre ordinateur"). C'est normal
+pour un exe non signe telecharge depuis internet -> cliquer sur
+"Plus d'infos" puis "Executer quand meme".
+
 UTILISATION SUR LE TERRAIN
 ----------------------------
-1. Copier dist/depanpc-agent.exe (et dist/MODE_EMPLOI.txt) sur le PC a
-   depanner (cle USB, ou telechargement direct si heberge en ligne).
+1. Sur le PC a depanner : soit copier dist/depanpc-agent.exe depuis une
+   cle USB, soit ouvrir un navigateur et telecharger directement via
+   tinyurl.com/29qe7by7 (necessite une connexion internet, par exemple
+   via le hotspot Android une fois connecte).
 2. Double-cliquer sur depanpc-agent.exe : une fenetre affiche la version,
    les IP reseau et le token de connexion.
 3. Depuis le portable de controle (connecte au meme hotspot) :

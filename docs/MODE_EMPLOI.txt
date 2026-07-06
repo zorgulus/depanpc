@@ -9,13 +9,23 @@ peut exécuter que des actions précises, jamais une commande arbitraire.
 
 COMMENT LE LANCER
 ------------------
-1. Copier depanpc-agent.exe sur le PC à dépanner (clé USB, etc.).
+1. Récupérer depanpc-agent.exe sur le PC à dépanner :
+   - soit depuis une clé USB,
+   - soit en le téléchargeant directement via un navigateur, à cette
+     adresse : tinyurl.com/29qe7by7
+     (nécessite une connexion internet sur le PC, par exemple en le
+     connectant d'abord au hotspot Android)
 2. Double-cliquer dessus. Une fenêtre noire s'ouvre et affiche :
    - la ou les adresses IP du PC sur le réseau (hotspot)
    - un token de connexion (une suite de lettres/chiffres)
 3. Garder cette fenêtre ouverte pendant toute la durée du dépannage.
 4. Sur le portable de contrôle, se connecter avec l'IP et le token affichés.
 5. Pour arrêter l'agent : fermer la fenêtre, ou Ctrl+C.
+
+Si l'exe a été téléchargé via le navigateur, Windows affichera un
+avertissement SmartScreen ("Windows a protégé votre ordinateur") au
+premier lancement — c'est normal pour un exe non signé venant d'internet.
+Cliquer sur "Plus d'infos" puis "Exécuter quand même".
 
 CE QUE L'AGENT FAIT — ET NE FAIT PAS
 --------------------------------------
