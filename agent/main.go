@@ -155,7 +155,7 @@ func main() {
 	}
 	tlsListener := tls.NewListener(listener, &tls.Config{Certificates: []tls.Certificate{cert}})
 
-	authToken := newToken()
+	authToken := newHumanToken()
 	limiter := &authLimiter{}
 	ips := localIPv4Addrs()
 
@@ -394,6 +394,27 @@ func newToken() string {
 	b := make([]byte, 8)
 	rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// tokenAlphabet exclut les caractères ambigus à l'oral/à l'écrit (I, L, O,
+// 0, 1) : 32 symboles, ce qui tombe rond sur 256/32=8 - aucun biais de
+// modulo à corriger.
+const tokenAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+
+// newHumanToken génère un token de connexion court (format "XXX-XXX", 6
+// caractères utiles, ~30 bits d'entropie) pensé pour être lu à voix haute
+// ou retapé rapidement par l'opérateur - contrairement à newToken (64 bits,
+// jamais tapé par un humain, réservé aux confirmations internes), la
+// commodité prime ici sur l'entropie maximale. Choix assumé par
+// l'utilisateur du projet après discussion du compromis.
+func newHumanToken() string {
+	b := make([]byte, 6)
+	rand.Read(b)
+	chars := make([]byte, 6)
+	for i, v := range b {
+		chars[i] = tokenAlphabet[int(v)%len(tokenAlphabet)]
+	}
+	return fmt.Sprintf("%s-%s", chars[:3], chars[3:])
 }
 
 // maskToken ne garde que les 4 premiers caractères d'un token pour les
