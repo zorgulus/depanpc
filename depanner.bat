@@ -41,4 +41,4 @@ if errorlevel 1 (
 
 cd /d "%ROOT%"
 echo Environnement pret. Lancement de Claude Code...
-claude
+claude "Nouvelle session de depannage DepanPC. Demande-moi le token de connexion affiche sur le PC a depanner, puis suis les instructions de CLAUDE.md."
