@@ -20,6 +20,7 @@ import websockets
 from websockets.exceptions import ConnectionClosed
 
 import discovery
+from tls_context import insecure_ssl_context
 
 
 async def send_and_receive(ws, message):
@@ -38,9 +39,9 @@ async def authenticate(ws, token):
 
 
 async def run(host, port, token):
-    url = f"ws://{host}:{port}/ws"
+    url = f"wss://{host}:{port}/ws"
     print(f"Connexion à {url} ...")
-    async with websockets.connect(url) as ws:
+    async with websockets.connect(url, ssl=insecure_ssl_context()) as ws:
         if not await authenticate(ws, token):
             return
 

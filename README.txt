@@ -6,11 +6,22 @@ depanner + centre de controle sur portable, connectes en WebSocket (JSON).
 
 REGLES NON NEGOCIABLES
 -----------------------
-- L'agent n'execute JAMAIS de commande arbitraire : uniquement une
-  whitelist fermee codee en dur (agent/whitelist.go).
-- Commandes "read" : execution automatique.
-- Commandes "action" : confirmation manuelle obligatoire avant execution
-  (voir docs/PROTOCOL.md).
+- L'agent n'execute que des commandes de sa whitelist fermee, codee en dur
+  (agent/whitelist.go) : impossible d'invoquer un nom de commande hors de
+  cette liste, quel que soit le contenu envoye par le client.
+- EXCEPTION ASSUMEE : la commande run_command (whitelistee comme toutes
+  les autres) execute elle une chaine arbitraire dans un vrai shell
+  (cmd ou PowerShell) - acces complet type SSH, y compris registre et
+  profondeurs de Windows. Gardee derriere enable_shell, qui exige UNE
+  confirmation manuelle par connexion (pas par commande) avant que
+  run_command devienne utilisable. Voir docs/PROTOCOL.md pour le detail.
+- Commandes "read" (dont run_command une fois deverrouille) : execution
+  automatique, sans confirmation par appel.
+- Commandes "action" (kill_process, flush_dns, enable_shell) :
+  confirmation manuelle obligatoire avant execution (voir docs/PROTOCOL.md).
+- Connexion chiffree (wss://, certificat ephemere) depuis la phase acces
+  etendu - protege contre l'ecoute passive du token/trafic sur le hotspot.
+- Verrou anti-bruteforce sur l'authentification (5 echecs -> 30s de blocage).
 - Tout ce qui se passe sur l'agent est journalise localement (agent.log,
   cree a cote de l'executable).
 

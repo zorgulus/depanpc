@@ -16,6 +16,8 @@ import json
 import psutil
 import websockets
 
+from tls_context import insecure_ssl_context
+
 DEFAULT_PORT = 8765
 
 
@@ -43,10 +45,10 @@ def candidate_networks(min_prefix_len=22):
 
 
 async def _probe(ip, port, timeout):
-    url = f"ws://{ip}:{port}/ws"
+    url = f"wss://{ip}:{port}/ws"
     try:
         async with asyncio.timeout(timeout):
-            async with websockets.connect(url, open_timeout=timeout) as ws:
+            async with websockets.connect(url, open_timeout=timeout, ssl=insecure_ssl_context()) as ws:
                 await ws.send(json.dumps({"id": "discover", "type": "auth", "token": ""}))
                 raw = await ws.recv()
                 data = json.loads(raw)

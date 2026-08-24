@@ -40,15 +40,26 @@ Pour piloter la session depuis toi (Claude Code) plutôt qu'en tapant à la main
 | `get_event_log` | read | `log` (System/Application), `max` (1-50) | journal d'événements récents |
 | `kill_process` | **action** | `pid` | termine un processus |
 | `flush_dns` | **action** | — | vide le cache DNS |
+| `enable_shell` | **action** | — | déverrouille `run_command` pour toute la session (une seule confirmation, pas par commande) |
+| `run_command` | read* | `command`, `shell` (`cmd` défaut ou `powershell`) | exécute une commande arbitraire (accès complet type SSH : registre, services, tout) — rejetée tant que `enable_shell` n'a pas été confirmé |
 
 ## Règles non négociables
 
 1. **Les commandes "read" s'exécutent automatiquement** — tu peux les lancer librement pour diagnostiquer, pas besoin de demander la permission à chaque fois une fois la session de dépannage engagée.
-2. **Les commandes "action" (`kill_process`, `flush_dns`) exigent une confirmation manuelle explicite de l'utilisateur avant que tu tapes "oui" au client.** Explique-lui clairement ce que tu t'apprêtes à faire et pourquoi (ex: "je vais tuer le processus X, pid 1234, qui sature le CPU — je confirme ?") avant de répondre "oui" au prompt de confirmation. Ne confirme jamais une action sans un accord explicite de l'utilisateur dans la conversation.
-3. **Tu ne peux pas contourner la whitelist** — elle est codée en dur côté agent, toute commande hors de cette liste sera rejetée quoi qu'il arrive. N'essaie pas d'improviser une commande absente du tableau ci-dessus.
-4. **Si `kill_process` ou une autre commande échoue de façon suspecte**, ne réessaie pas en boucle — explique le message d'erreur reçu à l'utilisateur et attends ses instructions.
-5. Le processus de dépannage est journalisé automatiquement côté agent (`agent.log` sur le PC dépanné) — tu n'as rien à faire de spécial pour la traçabilité.
+2. **Les commandes "action" (`kill_process`, `flush_dns`, `enable_shell`) exigent une confirmation manuelle explicite de l'utilisateur avant que tu tapes "oui" au client.** Explique-lui clairement ce que tu t'apprêtes à faire et pourquoi (ex: "je vais tuer le processus X, pid 1234, qui sature le CPU — je confirme ?") avant de répondre "oui" au prompt de confirmation. Ne confirme jamais une action sans un accord explicite de l'utilisateur dans la conversation.
+3. **`enable_shell` mérite une explication à part** : contrairement aux autres actions, la confirmer donne un accès shell complet et illimité pour tout le reste de la session (pas de confirmation par commande ensuite). Avant de la déclencher, assure-toi que l'utilisateur comprend bien que ça ouvre un accès total (registre, fichiers, processus, tout ce qu'un shell local permettrait) — ce n'est pas un geste anodin comme `flush_dns`.
+4. **Tu ne peux pas contourner la whitelist** — elle est codée en dur côté agent, toute commande hors de cette liste sera rejetée quoi qu'il arrive. `run_command` est whitelistée mais son CONTENU n'est lui pas contrôlé — n'improvise pas de commande destructrice sans que l'utilisateur ait explicitement validé quoi faire.
+5. **Si une commande échoue de façon suspecte**, ne réessaie pas en boucle — explique le message d'erreur reçu à l'utilisateur et attends ses instructions.
+6. **Sur `run_command`, préfère `shell: "powershell"` pour tout chemin Windows contenant des espaces** (ex: `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion`) — `cmd.exe` a des limites de parsing connues sur les guillemets imbriqués dans ce cas.
+7. Le processus de dépannage est journalisé automatiquement côté agent (`agent.log` sur le PC dépanné) — tu n'as rien à faire de spécial pour la traçabilité.
 
-## Objectif de la session
+## Objectif de la session — sois proactif, pas juste exécutant
 
-Aide l'utilisateur à diagnostiquer puis résoudre le problème du PC distant : commence par un tour d'horizon (`ping`, `get_hostname`, `list_disks`, `network_info`, `list_processes`), identifie la cause probable du problème signalé, propose une action ciblée, et n'exécute cette action qu'après confirmation explicite.
+L'utilisateur n'est pas forcément technique et ne sait pas toujours quoi diagnostiquer en premier. **C'est à toi de guider l'investigation**, pas à lui de te dicter chaque commande :
+
+1. Demande d'abord une description du problème en langage courant ("le PC est lent", "plus de son", "erreur au démarrage"...).
+2. Lance toi-même un tour d'horizon pertinent selon le symptôme décrit (pas systématiquement tout : adapte — `list_processes`+`list_disks` pour de la lenteur, `network_info` pour un souci réseau, `get_event_log` pour une erreur ponctuelle, etc.).
+3. **Interprète les résultats à voix haute** pour l'utilisateur — explique ce que tu vois, pas juste le JSON brut (ex: "ton disque C: est à 97% plein, c'est probablement pour ça que tout rame").
+4. Propose une hypothèse et une action concrète, explique pourquoi, puis demande confirmation avant d'agir.
+5. Si le diagnostic de base ne suffit pas et qu'un accès plus profond est nécessaire (registre, service, fichier de config), explique pourquoi à l'utilisateur et demande-lui s'il veut activer `enable_shell` — ne le fais pas basculer en mode shell complet sans lui avoir expliqué ce que ça implique (voir règle 3 ci-dessus).
+6. Une fois le problème résolu, résume clairement ce qui a été fait et pourquoi, pour que l'utilisateur comprenne ce qui s'est passé.

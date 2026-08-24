@@ -59,4 +59,21 @@ var whitelist = map[string]CommandDef{
 		Category: CategoryAction,
 		Handler:  cmdFlushDNS,
 	},
+	// enable_shell passe par le flux de confirmation standard (une seule
+	// fois par connexion) pour déverrouiller run_command. Voir handleConfirm
+	// dans main.go pour l'effet de bord (shellUnlocked).
+	"enable_shell": {
+		Category: CategoryAction,
+		Handler:  cmdEnableShell,
+	},
+	// run_command exécute une commande arbitraire (cmd ou PowerShell) sans
+	// confirmation par appel : la seule barrière est enable_shell, vérifiée
+	// explicitement dans handleRequest avant tout dispatch vers ce handler.
+	// Contrairement au reste de la whitelist, cette commande n'offre AUCUNE
+	// garantie sur ce qui est exécuté : c'est un choix assumé (accès complet
+	// type SSH), pas un oubli.
+	"run_command": {
+		Category: CategoryRead,
+		Handler:  cmdRunCommand,
+	},
 }

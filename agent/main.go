@@ -1,17 +1,25 @@
 package main
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
+	"math/big"
 	"net"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -21,6 +29,16 @@ const (
 	confirmTTL     = 60 * time.Second
 	logFile        = "agent.log"
 	maxMessageSize = 16 * 1024 // largement suffisant pour nos messages JSON
+
+	// Anti-bruteforce sur l'authentification : au-delà de ce nombre
+	// d'échecs consécutifs (toutes connexions confondues, l'agent tourne
+	// seul par PC dépanné), l'agent refuse toute nouvelle tentative pendant
+	// authLockoutDuration. Défense en profondeur : le token lui-même (64
+	// bits d'entropie, voir newToken) rend déjà le bruteforce pratiquement
+	// infaisable, mais ça protège aussi contre un futur affaiblissement du
+	// format de token ou un bug d'implémentation.
+	maxAuthFailures     = 5
+	authLockoutDuration = 30 * time.Second
 )
 
 // buildVersion est injecté au build via -ldflags -X (voir build.ps1).
@@ -37,6 +55,77 @@ type pendingAction struct {
 	Command string
 	Params  json.RawMessage
 	Expiry  time.Time
+}
+
+// authLimiter applique un verrou temporaire après plusieurs échecs
+// d'authentification consécutifs. Partagé entre toutes les connexions
+// (l'agent tourne seul par PC dépanné, un compteur global suffit).
+type authLimiter struct {
+	mu          sync.Mutex
+	failures    int
+	lockedUntil time.Time
+}
+
+func (l *authLimiter) allow() bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return time.Now().After(l.lockedUntil)
+}
+
+func (l *authLimiter) recordFailure() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.failures++
+	if l.failures >= maxAuthFailures {
+		l.lockedUntil = time.Now().Add(authLockoutDuration)
+		l.failures = 0
+	}
+}
+
+func (l *authLimiter) recordSuccess() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.failures = 0
+}
+
+// generateSelfSignedCert crée un certificat TLS éphémère (en mémoire
+// uniquement, jamais écrit sur disque, régénéré à chaque démarrage comme le
+// token). Objectif : empêcher l'écoute passive du token et du trafic sur le
+// hotspot (WireShark etc.), pas authentifier l'identité du PC dépanné face à
+// un attaquant actif capable d'usurper la connexion — même limite déjà
+// documentée pour le token lui-même (voir docs/PROTOCOL.md).
+func generateSelfSignedCert() (tls.Certificate, string, error) {
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return tls.Certificate{}, "", fmt.Errorf("génération de clé: %w", err)
+	}
+
+	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return tls.Certificate{}, "", fmt.Errorf("génération de numéro de série: %w", err)
+	}
+
+	template := x509.Certificate{
+		SerialNumber: serial,
+		Subject:      pkix.Name{CommonName: "DepanPC Agent (ephemere)"},
+		NotBefore:    time.Now().Add(-5 * time.Minute),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	}
+
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+	if err != nil {
+		return tls.Certificate{}, "", fmt.Errorf("création du certificat: %w", err)
+	}
+
+	fingerprint := sha256.Sum256(derBytes)
+
+	cert := tls.Certificate{
+		Certificate: [][]byte{derBytes},
+		PrivateKey:  priv,
+	}
+	return cert, hex.EncodeToString(fingerprint[:]), nil
 }
 
 func main() {
@@ -60,18 +149,26 @@ func main() {
 	}
 	defer logger.Close()
 
+	cert, fingerprint, err := generateSelfSignedCert()
+	if err != nil {
+		log.Fatalf("impossible de générer le certificat TLS: %v", err)
+	}
+	tlsListener := tls.NewListener(listener, &tls.Config{Certificates: []tls.Certificate{cert}})
+
 	authToken := newToken()
+	limiter := &authLimiter{}
 	ips := localIPv4Addrs()
 
 	fmt.Println("=== Agent DEPAN PC ===")
 	fmt.Printf("Version : %s\n", buildVersion)
-	fmt.Printf("Écoute sur ws://%s/ws\n", *listenAddr)
+	fmt.Printf("Écoute sur wss://%s/ws (connexion chiffrée)\n", *listenAddr)
 	if len(ips) > 0 {
 		fmt.Printf("Adresses IP possibles pour le client : %s\n", strings.Join(ips, ", "))
 	} else {
 		fmt.Println("Aucune adresse IP réseau détectée (localhost uniquement).")
 	}
 	fmt.Printf("Token de connexion (à saisir dans le client) : %s\n", authToken)
+	fmt.Printf("Empreinte du certificat (optionnel, à comparer si besoin) : %s\n", fingerprint)
 	fmt.Println("Cette fenêtre doit rester ouverte tant que le dépannage est en cours.")
 	fmt.Println("Fermer la fenêtre (ou Ctrl+C) arrête l'agent.")
 	fmt.Println("======================")
@@ -80,17 +177,18 @@ func main() {
 	// fichier local lisible par tout processus ayant accès au disque, et le
 	// token y transiterait sinon en clair (voir maskToken).
 	logger.Log("startup", "", map[string]interface{}{
-		"version": buildVersion,
-		"listen":  *listenAddr,
-		"ips":     ips,
-		"token":   maskToken(authToken),
+		"version":              buildVersion,
+		"listen":               *listenAddr,
+		"ips":                  ips,
+		"token":                maskToken(authToken),
+		"tls_cert_fingerprint": fingerprint,
 	})
 
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		handleConn(w, r, logger, authToken)
+		handleConn(w, r, logger, authToken, limiter)
 	})
 
-	if err := http.Serve(listener, nil); err != nil {
+	if err := http.Serve(tlsListener, nil); err != nil {
 		log.Fatalf("serveur arrêté: %v", err)
 	}
 }
@@ -118,7 +216,7 @@ func localIPv4Addrs() []string {
 	return ips
 }
 
-func handleConn(w http.ResponseWriter, r *http.Request, logger *Logger, authToken string) {
+func handleConn(w http.ResponseWriter, r *http.Request, logger *Logger, authToken string, limiter *authLimiter) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("upgrade websocket échoué: %v", err)
@@ -131,11 +229,12 @@ func handleConn(w http.ResponseWriter, r *http.Request, logger *Logger, authToke
 	logger.Log("connection_open", "", map[string]string{"remote": remote})
 	defer logger.Log("connection_close", "", map[string]string{"remote": remote})
 
-	if !authenticate(conn, logger, remote, authToken) {
+	if !authenticate(conn, logger, remote, authToken, limiter) {
 		return
 	}
 
 	pending := map[string]pendingAction{}
+	shellUnlocked := false
 
 	for {
 		_, raw, err := conn.ReadMessage()
@@ -152,9 +251,9 @@ func handleConn(w http.ResponseWriter, r *http.Request, logger *Logger, authToke
 
 		switch msg.Type {
 		case MsgRequest:
-			handleRequest(conn, logger, pending, msg)
+			handleRequest(conn, logger, pending, msg, &shellUnlocked)
 		case MsgConfirm:
-			handleConfirm(conn, logger, pending, msg)
+			handleConfirm(conn, logger, pending, msg, &shellUnlocked)
 		default:
 			logger.Log("unknown_message_type", "", map[string]string{"type": msg.Type})
 			conn.WriteJSON(Message{ID: msg.ID, Type: MsgError, Error: "unknown_message_type"})
@@ -167,7 +266,13 @@ func handleConn(w http.ResponseWriter, r *http.Request, logger *Logger, authToke
 // connexion qui échoue à s'authentifier est immédiatement fermée et
 // journalisée — l'agent étant désormais joignable depuis tout le réseau du
 // hotspot et non plus seulement localhost.
-func authenticate(conn *websocket.Conn, logger *Logger, remote, authToken string) bool {
+func authenticate(conn *websocket.Conn, logger *Logger, remote, authToken string, limiter *authLimiter) bool {
+	if !limiter.allow() {
+		logger.Log("auth_failed", "", map[string]string{"remote": remote, "reason": "locked_out"})
+		conn.WriteJSON(Message{Type: MsgError, Error: "auth_failed"})
+		return false
+	}
+
 	_, raw, err := conn.ReadMessage()
 	if err != nil {
 		return false
@@ -182,21 +287,40 @@ func authenticate(conn *websocket.Conn, logger *Logger, remote, authToken string
 
 	tokenMatch := subtle.ConstantTimeCompare([]byte(msg.Token), []byte(authToken)) == 1
 	if msg.Type != MsgAuth || !tokenMatch {
+		// Un token vide ne compte pas comme un échec pour le verrou
+		// anti-bruteforce : c'est la sonde volontaire utilisée par la
+		// découverte automatique (client/discovery.py) pour confirmer
+		// qu'il s'agit bien d'un agent DEPAN PC, pas une tentative de
+		// devinette — la répéter n'apprend rien à un vrai attaquant.
+		if msg.Token != "" {
+			limiter.recordFailure()
+		}
 		logger.Log("auth_failed", "", map[string]string{"remote": remote, "reason": "bad_token"})
 		conn.WriteJSON(Message{ID: msg.ID, Type: MsgError, Error: "auth_failed"})
 		return false
 	}
 
+	limiter.recordSuccess()
 	logger.Log("auth_success", "", map[string]string{"remote": remote})
 	conn.WriteJSON(Message{ID: msg.ID, Type: MsgResponse, Status: "ok"})
 	return true
 }
 
-func handleRequest(conn *websocket.Conn, logger *Logger, pending map[string]pendingAction, msg Message) {
+func handleRequest(conn *websocket.Conn, logger *Logger, pending map[string]pendingAction, msg Message, shellUnlocked *bool) {
 	def, ok := whitelist[msg.Command]
 	if !ok {
 		logger.Log("rejected_unknown_command", msg.Command, nil)
 		conn.WriteJSON(Message{ID: msg.ID, Type: MsgError, Error: "unknown_command"})
+		return
+	}
+
+	// run_command reste dans la whitelist en catégorie "read" (pas de
+	// confirmation par appel, comme voulu), mais exige d'avoir déverrouillé
+	// le mode shell au préalable via enable_shell (une confirmation, une
+	// seule fois par connexion) — vérifié ici, avant tout dispatch.
+	if msg.Command == "run_command" && !*shellUnlocked {
+		logger.Log("rejected_shell_locked", msg.Command, nil)
+		conn.WriteJSON(Message{ID: msg.ID, Type: MsgError, Error: "shell_not_unlocked"})
 		return
 	}
 
@@ -226,7 +350,7 @@ func handleRequest(conn *websocket.Conn, logger *Logger, pending map[string]pend
 	conn.WriteJSON(Message{ID: msg.ID, Type: MsgConfirmationRequired, Command: msg.Command, ConfirmToken: token})
 }
 
-func handleConfirm(conn *websocket.Conn, logger *Logger, pending map[string]pendingAction, msg Message) {
+func handleConfirm(conn *websocket.Conn, logger *Logger, pending map[string]pendingAction, msg Message, shellUnlocked *bool) {
 	action, ok := pending[msg.ConfirmToken]
 	if !ok {
 		logger.Log("confirm_rejected", "", map[string]string{"reason": "unknown_token"})
@@ -256,6 +380,12 @@ func handleConfirm(conn *websocket.Conn, logger *Logger, pending map[string]pend
 		conn.WriteJSON(Message{ID: msg.ID, Type: MsgResponse, Status: "error", Error: err.Error()})
 		return
 	}
+
+	if action.Command == "enable_shell" {
+		*shellUnlocked = true
+		logger.Log("shell_unlocked", "", nil)
+	}
+
 	logger.Log("action_executed", action.Command, result)
 	conn.WriteJSON(Message{ID: msg.ID, Type: MsgResponse, Status: "ok", Result: result})
 }

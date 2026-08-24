@@ -1,5 +1,13 @@
 # Protocole WebSocket — Phase 2 (hotspot)
 
+Depuis la phase "accès étendu", la connexion est chiffrée (`wss://`, certificat
+auto-signé éphémère régénéré à chaque démarrage de l'agent comme le token —
+protège contre l'écoute passive du token/trafic sur le hotspot, pas contre un
+attaquant actif capable d'usurper la connexion, même limite déjà admise pour
+le token). L'empreinte SHA-256 du certificat est affichée à côté du token si
+une vérification manuelle est souhaitée ; les clients ne la valident pas
+automatiquement (pas d'autorité de confiance stable à épingler).
+
 Un seul type de message JSON transite dans les deux sens :
 
 ```json
@@ -73,8 +81,12 @@ Un token expire après **60 secondes** et n'est utilisable **qu'une seule fois**
 | `get_event_log` | read | `log` (`System`\|`Application`, défaut `System`), `max` (1-50, défaut 20) | entrées Critique/Erreur/Avertissement récentes du journal d'événements |
 | `kill_process` | action | `pid` (entier positif) | termine un processus (`taskkill /F`) |
 | `flush_dns` | action | — | vide le cache DNS local (`ipconfig /flushdns`) |
+| `enable_shell` | action | — | déverrouille `run_command` pour la connexion en cours (une seule confirmation par session, pas par appel) |
+| `run_command` | read* | `command`, `shell` (`cmd` défaut ou `powershell`) | exécute une commande arbitraire ; *catégorie "read" au sens whitelist (pas de confirmation par appel), mais rejetée avec `shell_not_unlocked` tant que `enable_shell` n'a pas été confirmé sur cette connexion |
 
-La whitelist est codée en dur dans le binaire. Aucun mécanisme ne permet d'exécuter une commande hors de cette liste, quel que soit le contenu envoyé par le client. Les commandes qui s'appuient sur un utilitaire système (`tasklist`, `taskkill`, `ipconfig`, `wevtutil`) le font avec une ligne de commande entièrement fixée par l'agent : les seuls éléments variables (nom de journal, PID, nombre max d'entrées) sont validés/clampés avant construction des arguments, jamais concaténés dans une chaîne shell.
+**`run_command` est une exception délibérée à la garantie ci-dessous** : c'est la seule commande de la whitelist dont le contenu exact exécuté n'est pas fixé/validé par l'agent — la chaîne fournie par le client est interprétée telle quelle par un vrai shell (`cmd /C` ou `powershell -Command`). Choix assumé pour un accès de dépannage complet (registre, services, tout ce qu'un shell local permettrait), gardé derrière `enable_shell` plutôt que laissé ouvert par défaut. `cmd.exe` a des limites connues de parsing sur les chemins contenant des espaces avec guillemets imbriqués (ex: `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion`) — préférer `shell: "powershell"` dans ce cas, plus robuste sur ce point.
+
+La whitelist reste codée en dur dans le binaire pour toutes les autres commandes. Aucun mécanisme ne permet d'exécuter une commande hors de cette liste, quel que soit le contenu envoyé par le client. Les commandes qui s'appuient sur un utilitaire système (`tasklist`, `taskkill`, `ipconfig`, `wevtutil`) le font avec une ligne de commande entièrement fixée par l'agent : les seuls éléments variables (nom de journal, PID, nombre max d'entrées) sont validés/clampés avant construction des arguments, jamais concaténés dans une chaîne shell.
 
 ### Encodage des sorties console
 

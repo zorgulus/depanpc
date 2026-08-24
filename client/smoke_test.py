@@ -21,6 +21,8 @@ import uuid
 
 import websockets
 
+from tls_context import insecure_ssl_context
+
 
 async def send_and_receive(ws, message):
     await ws.send(json.dumps(message))
@@ -36,8 +38,8 @@ async def expect(condition, description):
 
 async def run(host, port, token):
     all_ok = True
-    url = f"ws://{host}:{port}/ws"
-    async with websockets.connect(url) as ws:
+    url = f"wss://{host}:{port}/ws"
+    async with websockets.connect(url, ssl=insecure_ssl_context()) as ws:
         # Authentification
         resp = await send_and_receive(ws, {"id": "auth", "type": "auth", "token": token})
         all_ok &= await expect(resp.get("type") == "response" and resp.get("status") == "ok", "authentification acceptée")
@@ -101,7 +103,7 @@ async def run(host, port, token):
         all_ok &= await expect(dummy.poll() is not None, "le processus jetable est réellement terminé après confirmation")
 
     # Connexion séparée avec un mauvais token d'auth -> doit être coupée
-    async with websockets.connect(url) as ws2:
+    async with websockets.connect(url, ssl=insecure_ssl_context()) as ws2:
         resp = await send_and_receive(ws2, {"id": "14", "type": "auth", "token": "mauvais_token"})
         all_ok &= await expect(resp.get("type") == "error" and resp.get("error") == "auth_failed", "authentification avec un mauvais token refusée")
 
