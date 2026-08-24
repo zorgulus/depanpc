@@ -4,7 +4,12 @@ Tu viens d'être lancé dans le dossier `DepanPC`, sur le poste de contrôle d'u
 
 ## Démarrage — fais ça en tout premier
 
-Demande immédiatement à l'utilisateur, s'il ne l'a pas déjà donné :
+Avant de demander quoi que ce soit, rappelle à l'utilisateur ce qu'il doit faire côté PC à dépanner, s'il ne l'a pas déjà fait :
+1. Récupérer `depanpc-agent.exe` sur le PC à dépanner — soit depuis une clé USB, soit en le téléchargeant directement via `tinyurl.com/zorgulus` (nécessite une connexion internet sur ce PC, par exemple via le hotspot Android).
+2. Double-cliquer dessus (si Windows affiche un avertissement SmartScreen, c'est normal pour un exe non signé : cliquer sur "Plus d'infos" puis "Exécuter quand même").
+3. Une fenêtre s'ouvre sur le PC à dépanner et affiche son IP et un **token de connexion** — c'est cette fenêtre qu'il faut garder ouverte pendant tout le dépannage.
+
+Une fois que c'est fait, demande immédiatement à l'utilisateur, s'il ne l'a pas déjà donné :
 1. **Le token de connexion** affiché sur l'écran du PC à dépanner (obligatoire, ex: `P5E-KSN`).
 2. Optionnel : l'IP du PC à dépanner, si l'utilisateur l'a sous les yeux. Sinon, la découverte automatique s'en charge.
 
