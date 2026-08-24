@@ -19,6 +19,13 @@ import uuid
 import websockets
 from websockets.exceptions import ConnectionClosed
 
+# La console Windows utilise par defaut une codepage (cp1252 etc) qui ne
+# sait pas afficher certains caracteres renvoyes par des commandes shell
+# distantes (ex: caracteres de dessin de boite dans la sortie de winget) -
+# sans ce reconfigure, print() plante avec UnicodeEncodeError et coupe la
+# session au milieu d'une commande reussie.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 import discovery
 from tls_context import insecure_ssl_context
 
